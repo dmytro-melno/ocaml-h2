@@ -75,7 +75,7 @@ stdenv.mkDerivation {
     # Build the examples
     dune build @all --display=short
 
-    dune build --root=. --display=short @spec/all
+    dune build --root=. --display=short spec/lwt_h2spec.exe
     dune exec --display=short spec/lwt_h2spec.exe &
     while [ -z "$(lsof -t -i tcp:8080)" ]; do
       sleep 1;
@@ -88,5 +88,22 @@ stdenv.mkDerivation {
     h2spec --strict -p 8080 --timeout 3 -P /streaming
 
     kill $(lsof -i tcp:8080 -t)
+
+    # Run Eio h2spec now
+    ${if lib.versionOlder "5.0" ocamlPackages.ocaml.version then ''
+      dune build --display=short spec/eio_h2spec.exe
+      dune exec --display=short spec/eio_h2spec.exe &
+      while [ -z "$(lsof -t -i tcp:8080)" ]; do
+        sleep 1;
+      done;
+
+      h2spec --strict -p 8080 -P /string
+
+      h2spec --strict -p 8080 -P /bigstring
+
+      h2spec --strict -p 8080 --timeout 3 -P /streaming
+
+      kill $(lsof -i tcp:8080 -t)
+    '' else ""}
   '';
 }
