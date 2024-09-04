@@ -1,10 +1,10 @@
-let set_interval s f =
-  let timeout = Lwt_timeout.create s f in
-  Lwt_timeout.start timeout
+let set_interval ~clock s f =
+  Eio.Time.sleep clock s;
+  f ()
 
-let connection_handler : Unix.sockaddr -> Lwt_unix.file_descr -> unit Lwt.t =
+let connection_handler ~sw ~clock =
   let open H2 in
-  let request_handler : Unix.sockaddr -> Reqd.t -> unit =
+  let request_handler : Eio.Net.Sockaddr.stream -> Reqd.t -> unit =
    fun _client_address request_descriptor ->
     let request = Reqd.request request_descriptor in
     match request.target with
@@ -49,12 +49,13 @@ let connection_handler : Unix.sockaddr -> Lwt_unix.file_descr -> unit Lwt.t =
                 Reqd.respond_with_streaming request_descriptor response
               in
               Body.Writer.write_string response_body (String.make 100 'a');
-              set_interval 1 (fun () ->
-                ignore
-                @@ Reqd.try_with request_descriptor (fun () ->
-                  Body.Writer.write_string response_body " data");
-                Body.Writer.flush response_body (fun _reason ->
-                  Body.Writer.close response_body))
+              Eio.Fiber.fork ~sw (fun () ->
+                set_interval ~clock 1. (fun () ->
+                  ignore
+                  @@ Reqd.try_with request_descriptor (fun () ->
+                    Body.Writer.write_string response_body " data");
+                  Body.Writer.flush response_body (fun _reason ->
+                    Body.Writer.close response_body)))
             | "/bigstring" ->
               let res_body = "non-empty data." in
               let bs =
@@ -74,7 +75,7 @@ let connection_handler : Unix.sockaddr -> Lwt_unix.file_descr -> unit Lwt.t =
       respond ()
   in
   let error_handler :
-       Unix.sockaddr
+       Eio.Net.Sockaddr.stream
       -> ?request:H2.Request.t
       -> _
       -> (Headers.t -> Body.Writer.t)
@@ -92,24 +93,49 @@ let connection_handler : Unix.sockaddr -> Lwt_unix.file_descr -> unit Lwt.t =
         (Status.default_reason_phrase error));
     Body.Writer.close response_body
   in
-  H2_lwt_unix.Server.create_connection_handler
+  H2_eio.Server.create_connection_handler
+    ~sw
     ~config:{ H2.Config.default with max_concurrent_streams = 2l }
     ~request_handler
     ~error_handler
 
 let () =
-  let open Lwt.Infix in
   Sys.(set_signal sigpipe Signal_ignore);
   let port = ref 8080 in
   Arg.parse
     [ "-p", Arg.Set_int port, " Listening port number (8080 by default)" ]
     ignore
     "Echoes POST requests. Runs forever.";
-  let listen_address = Unix.(ADDR_INET (inet_addr_loopback, !port)) in
-  Lwt.async (fun () ->
-    Lwt_io.establish_server_with_client_socket listen_address connection_handler
-    >>= fun _server ->
-    Printf.printf "Server listening on port %i\n%!" !port;
-    Lwt.return_unit);
-  let forever, _ = Lwt.wait () in
-  Lwt_main.run forever
+
+  let listen_address = `Tcp (Eio.Net.Ipaddr.V4.loopback, !port) in
+  Eio_main.run (fun env ->
+    let network = Eio.Stdenv.net env in
+    let clock = Eio.Stdenv.clock env in
+    Eio.Switch.run (fun sw ->
+      let socket =
+        Eio.Net.listen
+          ~reuse_addr:true
+          ~reuse_port:true
+          ~backlog:5
+          ~sw
+          network
+          listen_address
+      in
+      let domain_mgr = Eio.Stdenv.domain_mgr env in
+      let p, _ = Eio.Promise.create () in
+      for _i = 1 to Domain.recommended_domain_count () do
+        Eio.Fiber.fork_daemon ~sw (fun () ->
+          Eio.Domain_manager.run domain_mgr (fun () ->
+            Eio.Switch.run (fun sw ->
+              while true do
+                Eio.Net.accept_fork
+                  socket
+                  ~sw
+                  ~on_error:raise
+                  (fun client_sock client_addr ->
+                     (* let p, u = Eio.Promise.create () in *)
+                     connection_handler ~sw ~clock client_addr client_sock)
+              done;
+              `Stop_daemon)))
+      done;
+      Eio.Promise.await p))
