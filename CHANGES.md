@@ -1,3 +1,9 @@
+0.13.0 2024-09-04
+--------------
+
+- surface write failures through `Body.Writer.flush`
+  ([#247](https://github.com/anmonteiro/ocaml-h2/pull/247))
+
 0.12.0 2024-06-23
 --------------
 

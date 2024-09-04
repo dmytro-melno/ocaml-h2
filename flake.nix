@@ -10,7 +10,11 @@
     flake-utils.lib.eachDefaultSystem (system:
       let
         pkgs = nixpkgs.legacyPackages."${system}".extend (self: super: {
-          ocamlPackages = super.ocaml-ng.ocamlPackages_5_2;
+          ocamlPackages = super.ocaml-ng.ocamlPackages_5_2.overrideScope (oself: osuper: {
+            gluten-lwt-unix = osuper.gluten-lwt-unix.overrideAttrs (o: {
+              propagatedBuildInputs = o.propagatedBuildInputs ++ [ oself.tls-lwt ];
+            });
+          });
         });
         packages = pkgs.callPackage ./nix { nix-filter = nix-filter.lib; };
       in

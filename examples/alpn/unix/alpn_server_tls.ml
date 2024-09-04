@@ -44,6 +44,7 @@ let start_https_server () =
                     (* accept h2 before http/1.1 *)
                   ~certificates:(`Single certificate)
                   ()
+                |> Result.get_ok
               in
               Tls_lwt.Unix.server_of_fd config fd >>= fun tls_server ->
               match Tls_lwt.Unix.epoch tls_server with
