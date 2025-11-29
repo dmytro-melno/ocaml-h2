@@ -249,7 +249,7 @@ let method_path_and_scheme_or_malformed t =
    *   All HTTP/2 requests MUST include exactly one valid value for the
    *   :method, :scheme, and :path pseudo-header fields, unless it is a
    *   CONNECT request (Section 8.3). *)
-  | [ ("CONNECT" as meth) ], [], [] ->
+  (* | [ ("CONNECT" as meth) ], [], [] ->
     (* From RFC7540§8.3:
      *   The HTTP header field mapping works as defined in Section 8.1.2.3
      *   ("Request Pseudo-Header Fields"), with a few differences.
@@ -264,7 +264,7 @@ let method_path_and_scheme_or_malformed t =
      *   A CONNECT request that does not conform to these restrictions is
      *   malformed (Section 8.1.2.6). *)
     if mem t ":authority" then `Valid (meth, "", "") else `Malformed
-  | [ "CONNECT" ], _, _ -> `Malformed
+  | [ "CONNECT" ], _, _ -> `Malformed *)
   | [ meth ], [ scheme ], [ path ] ->
     if valid_request_headers t then `Valid (meth, path, scheme) else `Malformed
   | _ -> `Malformed
