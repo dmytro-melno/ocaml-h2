@@ -647,6 +647,7 @@ module Settings : sig
     ; initial_window_size : int32
     ; max_frame_size : int
     ; max_header_list_size : int option
+    ; enable_connect_protocol : bool
     }
 
   val default : t

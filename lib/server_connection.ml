@@ -899,7 +899,8 @@ let apply_settings_list t settings =
                then descriptor.max_frame_size <- x)
              t.streams;
            { acc with max_frame_size = x }
-         | MaxHeaderListSize x -> { acc with max_header_list_size = Some x })
+         | MaxHeaderListSize x -> { acc with max_header_list_size = Some x }
+         | EnableConnectProtocol x -> { acc with enable_connect_protocol = x = 1}
       t.settings
       settings
   in

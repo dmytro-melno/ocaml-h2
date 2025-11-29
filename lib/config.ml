@@ -83,6 +83,7 @@ let to_settings
     ; max_concurrent_streams
     ; initial_window_size
     ; enable_server_push
+    ; enable_connect_protocol
     ; _
     }
   =
