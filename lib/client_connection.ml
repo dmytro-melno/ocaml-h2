@@ -907,7 +907,7 @@ let process_settings_frame t { Frame.frame_header; _ } settings =
                  t.streams;
                { acc with max_frame_size = x }
              | MaxHeaderListSize x -> { acc with max_header_list_size = Some x }
-             | EnableConnectProtocol x -> { acc with enable_connect_protocol = x = 1}
+             | EnableConnectProtocol x -> { acc with enable_connect_protocol = x = 1})
           t.settings
           settings
       in
