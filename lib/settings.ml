@@ -60,6 +60,7 @@ type setting =
   | InitialWindowSize of int32
   | MaxFrameSize (* this means payload size *) of int
   | MaxHeaderListSize of int
+  | EnableConnectProtocol of int
 
 type settings_list = setting list
 
@@ -76,9 +77,32 @@ let serialize_key = function
   | InitialWindowSize _ -> 0x4
   | MaxFrameSize _ -> 0x5
   | MaxHeaderListSize _ -> 0x6
+  | EnableConnectProtocol _ -> 0x8
 
 let check_value ~is_client = function
   | EnablePush v ->
+    if v <> 0 && v <> 1
+    then
+      (* From RFC7540§6.5.2
+       *   The initial value is 1, which indicates that server push is
+       *   permitted. Any value other than 0 or 1 MUST be treated as a
+       *   connection error (Section 5.4.1) of type PROTOCOL_ERROR. *)
+      Error
+        Error.(
+          ConnectionError (ProtocolError, "SETTINGS_ENABLE_PUSH must be 0 or 1"))
+    else if is_client && v = 1
+    then
+      (* From RFC7540§8.2:
+       *   Clients MUST reject any attempt to change the
+       *   SETTINGS_ENABLE_PUSH setting to a value other than 0 by
+       *   treating the message as a connection error (Section 5.4.1) of
+       *   type PROTOCOL_ERROR. *)
+      Error
+        Error.(
+          ConnectionError
+            (ProtocolError, "Server must not try to enable SETTINGS_ENABLE_PUSH"))
+    else Ok ()
+  | EnableConnectProtocol v ->
     if v <> 0 && v <> 1
     then
       (* From RFC7540§6.5.2
@@ -144,6 +168,7 @@ type t =
     initial_window_size : WindowSize.t
   ; max_frame_size : int
   ; max_header_list_size : int option
+  ; enable_connect_protocol : bool
   }
 
 (* From RFC7540§11.3 *)
@@ -158,6 +183,7 @@ let default =
   ; initial_window_size = WindowSize.default_initial_window_size
   ; max_frame_size = 0x4000
   ; max_header_list_size = None
+  ; enable_connect_protocol = false
   }
 
 let settings_for_the_connection settings =
@@ -183,6 +209,11 @@ let settings_for_the_connection settings =
     then EnablePush (if settings.enable_push then 1 else 0) :: settings_list
     else settings_list
   in
+  let settings_list =
+    if settings.enable_connect_protocol <> default.enable_connect_protocol
+    then EnableConnectProtocol (if settings.enable_connect_protocol then 1 else 0) :: settings_list
+    else settings_list
+  in
   settings_list
 
 let parse_settings_payload num_settings =
@@ -203,6 +234,7 @@ let parse_settings_payload num_settings =
            | 0x4 -> InitialWindowSize v :: acc
            | 0x5 -> MaxFrameSize (Int32.to_int v) :: acc
            | 0x6 -> MaxHeaderListSize (Int32.to_int v) :: acc
+           | 0x8 -> EnableConnectProtocol (Int32.to_int v) :: acc
            | _ ->
              (* Note: This ignores unknown settings.
               *
@@ -231,7 +263,8 @@ let write_settings_payload t settings_list =
        | HeaderTableSize value
        | EnablePush value
        | MaxFrameSize value
-       | MaxHeaderListSize value ->
+       | MaxHeaderListSize value
+       | EnableConnectProtocol value ->
          BE.write_uint32 t (Int32.of_int value))
     settings_list
 
@@ -244,7 +277,8 @@ let of_settings_list settings =
        | MaxConcurrentStreams x -> { acc with max_concurrent_streams = x }
        | InitialWindowSize new_val -> { acc with initial_window_size = new_val }
        | MaxFrameSize x -> { acc with max_frame_size = x }
-       | MaxHeaderListSize x -> { acc with max_header_list_size = Some x })
+       | MaxHeaderListSize x -> { acc with max_header_list_size = Some x }
+       | EnableConnectProtocol x -> { acc with enable_connect_protocol = x = 1 })
     default
     settings
 
@@ -283,6 +317,7 @@ let pp_hum formatter t =
       | InitialWindowSize v -> "INITIAL_WINDOW_SIZE", Int64.of_int32 v
       | MaxFrameSize v -> "MAX_FRAME_SIZE", Int64.of_int v
       | MaxHeaderListSize v -> "MAX_HEADER_LIST_SIZE", Int64.of_int v
+      | EnableConnectProtocol v -> "ENABLE_CONNECT_PROTOCOL", Int64.of_int v
     in
     Format.fprintf formatter "@[(%S %Ld)@]" key value
   in

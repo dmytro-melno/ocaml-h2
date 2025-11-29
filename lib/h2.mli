@@ -675,6 +675,8 @@ module Config : sig
     ; initial_window_size : int32
     (** [initial_window_size] specifies the initial window size for flow control
         tokens. Defaults to [65535] *)
+    ; enable_connect_protocol : bool
+    (** [enable_connect_protocol] RFC 8441. Defaults to [false] *)
     }
 
   val default : t

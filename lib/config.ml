@@ -40,6 +40,7 @@ type t =
   ; enable_server_push : bool
   ; max_concurrent_streams : int32
   ; initial_window_size : int32
+  ; enable_connect_protocol : bool
   }
 
 let default =
@@ -73,6 +74,8 @@ let default =
      * 128 MiB. *)
     (* TODO(anmonteiro): validate the default somewhere. *)
     initial_window_size = Int32.shift_left 1l 27
+  ;
+    enable_connect_protocol = false
   }
 
 let to_settings
@@ -88,4 +91,5 @@ let to_settings
   ; max_concurrent_streams
   ; initial_window_size
   ; enable_push = enable_server_push
+  ; enable_connect_protocol = enable_connect_protocol
   }
