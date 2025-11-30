@@ -174,7 +174,7 @@ let fold ~f ~init t =
 
 let exists ~f t = List.exists (fun { name; value; _ } -> f name value) t
 
-let valid_headers ?(_is_request = true) _t = true
+let valid_headers ?(is_request = true) _t = let _ = is_request in  true
   (* match get t "connection", get t "TE" with
   | Some _, _ ->
     (* From RFC7540§8.1.2.2:
