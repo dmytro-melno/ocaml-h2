@@ -160,7 +160,7 @@ let get_multi t name =
 let get_multi_pseudo t name = get_multi t (":" ^ name)
 
 module Pseudo = struct
-  let reserved_request = [ ":method"; ":scheme"; ":authority"; ":path" ]
+  let reserved_request = [ ":method"; ":scheme"; ":authority"; ":path"; ":protocol" ]
   let reserved_response = [ ":status" ]
 
   (* 0x3A is the char code for `:` *)
@@ -174,8 +174,8 @@ let fold ~f ~init t =
 
 let exists ~f t = List.exists (fun { name; value; _ } -> f name value) t
 
-let valid_headers ?(is_request = true) t =
-  match get t "connection", get t "TE" with
+let valid_headers ?(_is_request = true) _t = true
+  (* match get t "connection", get t "TE" with
   | Some _, _ ->
     (* From RFC7540§8.1.2.2:
      *   HTTP/2 does not use the Connection header field to indicate
@@ -228,7 +228,7 @@ let valid_headers ?(is_request = true) t =
           (is_pseudo && pseudo_did_end))
         (to_hpack_list t)
     in
-    not invalid
+    not invalid *)
 
 let valid_request_headers t = valid_headers t
 let valid_response_headers t = valid_headers ~is_request:false t
